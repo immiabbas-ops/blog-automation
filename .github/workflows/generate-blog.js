@@ -1,6 +1,6 @@
-import fs from "fs";
-import path from "path";
-import axios from "axios";
+const fs = require("fs");
+const path = require("path");
+const axios = require("axios");
 
 const blogDir = "./blog";
 if (!fs.existsSync(blogDir)) {
@@ -19,8 +19,8 @@ Requirements:
 - SEO-friendly title
 - Meta description
 - Clear H2 and H3 headings
-- Short, readable paragraphs
-- Actionable tips
+- Short readable paragraphs
+- Practical tips
 - Call to action at the end
 `;
 
@@ -34,7 +34,7 @@ async function generateBlog() {
     },
     {
       headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
     }
