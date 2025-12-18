@@ -1,0 +1,36 @@
+name: Generate Daily Blog Post
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"   # Daily at 6 AM UTC
+
+jobs:
+  generate-blog:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install deps
+        run: npm install axios
+
+      - name: Generate blog post
+        run: node generate-blog.js
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add blog
+          git commit -m "Auto: generate daily blog post" || echo "Nothing to commit"
+          git push
