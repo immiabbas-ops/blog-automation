@@ -1,0 +1,97 @@
+name: Generate Daily Blog Post
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Run daily at 2 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write  # Required to commit and push
+
+jobs:
+  generate-blog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper git operations
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          if [ -f package.json ]; then
+            npm install
+          else
+            npm install openai dotenv axios
+          fi
+      
+      - name: Check if OpenAI API key is set
+        run: |
+          if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+            echo "❌ ERROR: OPENAI_API_KEY secret is not set!"
+            echo "Please add OPENAI_API_KEY to GitHub Secrets"
+            exit 1
+          else
+            echo "✅ OPENAI_API_KEY is set"
+          fi
+      
+      - name: Generate blog post
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4' }}
+        run: |
+          if [ ! -f "scripts/generate-blog.js" ]; then
+            echo "❌ ERROR: scripts/generate-blog.js not found!"
+            exit 1
+          fi
+          node scripts/generate-blog.js
+      
+      - name: Post to social media
+        env:
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ secrets.INSTAGRAM_BUSINESS_ACCOUNT_ID }}
+          TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_PERSON_URN: ${{ secrets.LINKEDIN_PERSON_URN }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://emakzan.com' }}
+        run: |
+          # Find the latest blog post
+          LATEST_POST=$(ls -t blog/*.html blog/*.md 2>/dev/null | head -1)
+          if [ -n "$LATEST_POST" ]; then
+            node scripts/post-to-social-media.js "$LATEST_POST"
+          else
+            echo "No blog post found to post"
+          fi
+        continue-on-error: true  # Don't fail workflow if social media posting fails
+      
+      - name: Commit and push blog post
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Check if blog directory exists and has files
+          if [ ! -d "blog" ]; then
+            echo "⚠️  Blog directory not found, creating it..."
+            mkdir -p blog
+          fi
+          
+          # Add all blog files
+          git add blog/ || echo "No blog files to add"
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "ℹ️  No changes to commit"
+          else
+            echo "✅ Committing changes..."
+            git commit -m "Auto-generate blog post for $(date +%Y-%m-%d)" || exit 0
+            git push || echo "⚠️  Push failed, but continuing..."
+          fi
